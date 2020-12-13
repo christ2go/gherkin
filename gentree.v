@@ -1,7 +1,3 @@
-(** 
- *  We start by defining countability 
- *
- *)
 Require Import Nat.
 Require Import List.
 Import ListNotations.
@@ -10,10 +6,7 @@ Require Import Relations.
  *)
 Inductive Ntree : Type := NLeaf: nat -> Ntree | NBranch:  nat -> list Ntree -> Ntree.
 
-Inductive ltree (A:Set) : Set :=
-    lnode : A -> (list (ltree A))-> ltree A.
-
-Section correct_ltree_ind.
+Section correct_ntree_ind.
 
 Variables
   (A : Set)(P : Ntree -> Prop).
@@ -37,7 +30,7 @@ Fixpoint ntree_ind2 (t:Ntree) : P t :=
   | NLeaf x => H2 x
   end.
 
-End correct_ltree_ind.
+End correct_ntree_ind.
 Require Import PeanoNat. 
 Definition list_eq (A: Type) (f: A -> A -> bool) (l1 l2: list A) :=
   let fll := fix gh (l1 l2:list A) :=
@@ -55,7 +48,7 @@ Fixpoint ntree_eq_dec (n1 n2: Ntree) : bool :=
 (**
    Note: I know that this proof is quite ugly, sorry :-(
  **)
-Definition gentree_equal_dec_lemma: forall (x1 x2: Ntree), x1 = x2 <-> (ntree_eq_dec x1 x2) = true . 
+Definition ntree_equal_dec_lemma: forall (x1 x2: Ntree), x1 = x2 <-> (ntree_eq_dec x1 x2) = true . 
 Proof.
   intro.
   induction x1 using ntree_ind2.
@@ -136,22 +129,21 @@ Defined.
 Definition flatten {A: Type} (l: list (list A)) : list A :=
   List.fold_right (@app A) [] l. 
 
-Fixpoint gen_tree_to_list (t : Ntree ) : list ((nat *  nat) + nat) :=
+Fixpoint ntree_to_list (t : Ntree ) : list ((nat *  nat) + nat) :=
   match t with
   | NLeaf x => [inr x]
-  | NBranch n ts =>  (flatten (List.map gen_tree_to_list ts )) ++ [ @inl (nat*nat) nat (length ts, n) ]
+  | NBranch n ts =>  (flatten (List.map ntree_to_list ts )) ++ [ @inl (nat*nat) nat (length ts, n) ]
   end.
 
-Fixpoint gen_tree_of_list 
+Fixpoint ntree_of_list 
     (k : list (Ntree)) (l : list (nat * nat + nat)) : option (Ntree) :=
   match l with
   | [] => head k
-  | inr x :: l => gen_tree_of_list (NLeaf x :: k) l
+  | inr x :: l => ntree_of_list (NLeaf x :: k) l
   | inl (len,n) :: l =>
-     gen_tree_of_list (NBranch n (rev' (firstn len k)) :: skipn len k) l
+     ntree_of_list (NBranch n (rev' (firstn len k)) :: skipn len k) l
   end.
 
-Compute  (gen_tree_of_list [] (gen_tree_to_list (NBranch 4 [NLeaf 3; NLeaf 2]))). 
 Tactic Notation "trans" constr(A) := transitivity A.
 
 About "::". 
@@ -171,11 +163,11 @@ Proof.
 Qed.
 Print rev.
 
-Lemma gen_tree_of_to_list k l (t : Ntree) :
-  gen_tree_of_list k (gen_tree_to_list t ++ l) = gen_tree_of_list (t :: k) l.
+Lemma ntree_of_to_list k l (t : Ntree) :
+  ntree_of_list k (ntree_to_list t ++ l) = ntree_of_list (t :: k) l.
 Proof.
   revert t k l. fix FIX 1. intros [|n ts] k l; simpl; auto.
-    trans (gen_tree_of_list (rev' ts ++ k) ([inl (length ts, n)] ++ l)).
+    trans (ntree_of_list (rev' ts ++ k) ([inl (length ts, n)] ++ l)).
   -   rewrite<- app_assoc. revert k. generalize ([inl (length ts, n)] ++ l).
       induction ts as [|t ts'' IH]; intros k ts'''; simpl; auto.
       unfold rev. simpl rev_append.   rewrite<- app_assoc.  rewrite FIX. rewrite IH.
@@ -1004,15 +996,14 @@ Proof.
 Defined.
 
 Print enumerableDecodeEncode.
-Check gen_tree_of_to_list. 
 Lemma enumLtree: enumerable__T Ntree. 
 Proof.
-  apply (@enumerableDecodeEncode Ntree (list ((nat*nat)+nat)) gen_tree_to_list (gen_tree_of_list [])  ).
+  apply (@enumerableDecodeEncode Ntree (list ((nat*nat)+nat)) ntree_to_list (ntree_of_list [])  ).
   intro.
-  pose (gen_tree_of_to_list [] [] a).
+  pose (ntree_of_to_list [] [] a).
   rewrite app_nil_r in e.
   rewrite e.
-  simpl gen_tree_of_list.
+  simpl ntree_of_list.
   reflexivity.
   apply  enum_enumT. 
   apply enumerable_list.
@@ -1028,8 +1019,8 @@ Proof.
   intros x y.
   destruct ((ntree_eq_dec x y)) eqn:H.
   left.
-  apply gentree_equal_dec_lemma.
+  apply ntree_equal_dec_lemma.
   auto.
-  right. intro.  apply gentree_equal_dec_lemma in H1. congruence.
+  right. intro.  apply ntree_equal_dec_lemma in H1. congruence.
 Defined.
 

@@ -2,7 +2,9 @@
  Require Import gentree.
  Require Import String List Lia.
  Import ListNotations.
-
+(** 
+ * First we define some inducitve types
+ *)
  Inductive form := Var (n: nat) | Imp (f1 f2: form) | Box (f: form) | And (f1 f2: form) .
 
 Inductive mlbin (A: Type):= node: A *  A -> mlbin A | bleaf: A -> mlbin A .
@@ -11,7 +13,18 @@ Inductive mlbin (A: Type):= node: A *  A -> mlbin A | bleaf: A -> mlbin A .
 Inductive Vector (A : Type) : nat -> Type :=
     nilV : Vector A 0
   | consV : forall n : nat, A -> Vector A n -> Vector A (S n).
+Print Ntree. 
+(* Let's generate a pickle function for form. 
+   The generated function will embed forms into a general tree type called Ntree.
 
+   Ltrees can either be a leaf with a natural number attached or a branch, that is a number and a list of subtrees 
+                     * 4
+                   /  | \
+                  /   |  \
+                 /    |   \
+                * 3   2    1
+   can be represented as NBranch 4 [NLeaf 3; NLeaf 2; NLeaf 1]
+ *)
 MetaCoq Run Derive Pickle for form.
 (* When form is pickled, nat is automatically pickeled too, but not remembered yet.
    The nested inductives are currently only analyzed 1 level deep 
@@ -47,10 +60,10 @@ Print Unpickle_form.
 Fail MetaCoq Run Derive Unpickle for Vector.
 
 (**
- * Now that Dieter had the pickle functions all that is left to do inorder to proof countability / equality deciders was to show that the generated functions have a certain
+ * Now that we have the pickle functions all that is left to do inorder to proof countability / equality deciders is to show that the generated functions have a certain
  * cancellation property:
  * unpickle (pickle p)) = (Some p)
- * He can show this using an easy induction. It could be further automated by using some clever Ltac.
+ * We can show this using an easy induction. It could be further automated by using some clever Ltac / could be generated automatically.
  *)
 Lemma CancelNat : pcancel Pickle_nat Unpickle_nat. 
 Proof.
@@ -74,7 +87,8 @@ Proof.
       unfold Unpickle_nat in e. rewrite e. reflexivity.
   -   simpl Unpickle_form. rewrite IHf1.  rewrite IHf2. reflexivity.
   -   simpl Unpickle_form. rewrite IHf.  reflexivity.
-  -   simpl Unpickle_form. rewrite IHf1. rewrite IHf2.  reflexivity.  
+  -   simpl Unpickle_form. rewrite IHf1. rewrite IHf2.  reflexivity.
+  Show Proof.     
 Defined.
 
 Lemma CancelMlbin (A: Type) pA upA (H: pcancel pA upA) : pcancel (Pickle_mlbin A pA) (Unpickle_mlbin A upA). 
@@ -119,8 +133,8 @@ Ltac prove_equality p up cancel := intros a b ; decide ((p a) = (p b)); [left;
                                                                          
                                                                         ].
 
-(** Yay! Now we can get an equality decider for formulas for free
-    (with some magic ltac) 
+(** Yay! Now we can get an equality decider  for free
+     
  *)
 Lemma form_eq_dec: forall (f1 f2: form), {f1 = f2} + {f1 <> f2}.
 Proof.
@@ -133,7 +147,8 @@ Lemma EqDecMlbin' (A: Type) (pA: Pickle A) upA (H: pcancel pA upA) : forall (x y
 Defined.
 
 
-Definition form_bool_dec (f1 f2: form) := if form_eq_dec f1 f2 then true else false. 
+Definition form_bool_dec (f1 f2: form) := if form_eq_dec f1 f2 then true else false.
+(* The generated equality deciders work as expected. *)
 Compute (form_bool_dec (Var 10) (Var 11)). (* false *)
 Compute (form_bool_dec (Imp (Var 10) (Var 400)) (Imp (Var 10) (Var 400))). (* true *)
 
@@ -162,6 +177,7 @@ Lemma countableNatNatOpt : countable_list__T ((nat * nat)+nat).
     simpl snd. apply in_seq. lia. 
     exists (S n). unfold listEnumerator. rewrite in_app_iff. right. apply in_map_iff. exists n. split; eauto. apply in_seq.  lia.
 Defined.
+(** We still need to proof, that if A is countable, so is list A *)
 Section ListEnumerator.
   Variable (X: Type).
   Variable (L: nat -> list X).
@@ -188,7 +204,9 @@ Proof.
     in_collect (a,l).
     all: eapply cum_ge'; eauto using L_list_cumulative; lia.
 Defined.    
-(* We show that having a pickle / unpickle function works well with list enumerators *)
+(** We show that having a pickle / unpickle function works well with list enumerators **)
+
+(* Removes all None Elements from a list and deSomes the other *)
 Fixpoint deOptionize {A: Type} (l: list (option A)) : list A :=
   match l with
     (Some x :: xr) => x::(deOptionize xr)
@@ -218,15 +236,15 @@ Proof.
   specialize (Hb (code a)).
   destruct Hb. exists x. apply deOptIn. rewrite<- H1. apply in_map_iff. exists (code a).  split; tauto.
 Defined.
-
+(* Now we can show, that Ntrees are countable *)
 Lemma enumLtree: countable_list__T Ntree. 
 Proof.
-  apply (@countableDecodeEncode Ntree (list ((nat*nat)+nat)) gen_tree_to_list (gen_tree_of_list [])  ).
+  apply (@countableDecodeEncode Ntree (list ((nat*nat)+nat)) ntree_to_list (ntree_of_list [])  ).
   intro.
-  pose (gen_tree_of_to_list [] [] a).
+  pose (ntree_of_to_list [] [] a).
   rewrite app_nil_r in e.
   rewrite e.
-  simpl gen_tree_of_list.
+  simpl ntree_of_list.
   reflexivity.
   apply countable_list.
   apply countableNatNatOpt. 
@@ -262,7 +280,9 @@ Print Unpickle_rose.
 
 (** Let us verify that the generated functions work as intended *)
 Compute (Unpickle_rose nat Unpickle_nat (Pickle_rose nat Pickle_nat (rtree nat [rleaf nat 2; rtree nat [rleaf nat 1; rleaf nat 200]]))).
-
+(* We need a stronger cancellation lemma for lists 
+   (i.e. we do not need (Unpickle_A (Pickle_A a)) = Some a for every a 
+   but only for the elements in the list *)
 Lemma List_PCancel (A: Type) (pA: Pickle A) (upA: Unpickle A) (l: list A):
   (forall a, In a l -> (upA (pA a)) = Some a) -> (Unpickle_list A upA (Pickle_list A pA l)) = Some l.
 Proof.
@@ -273,7 +293,7 @@ Proof.
     auto. intros h H1. apply H. right. auto.
 Qed.
 (* Proving the cancellation property for rose is quite difficult.
- * It needs the weaker version of the cancellation lemma for Lists.
+ * It needs the stronger version of the cancellation lemma for Lists.
  *)
 
 Lemma CancelRose (A: Type) (pA: Pickle A) (upA: Unpickle A) (H: pcancel pA upA):
@@ -316,7 +336,5 @@ Proof.
 Defined.   
 
 (** That concludes our demo of the gherkin plugin,
-    Some more examples of 'harder to pickle' types are contained in the file examples.v. 
-
-    
+    Some more examples of 'harder to pickle' types are contained in the file examples.v    
  **)

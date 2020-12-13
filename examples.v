@@ -107,3 +107,15 @@ MetaCoq Run Derive Unpickle for rosetree.
 MetaCoq Run Derive Unpickle for strangeInd. 
 MetaCoq Run Derive Unpickle for doubleNat. 
 MetaCoq Run Derive Unpickle for specialtriple.
+
+From MetaCoq.Template Require Import All.
+(* Example where the automatic inference of containered types fails, but the types can be supplied manually *)
+Inductive T1 := tnull : T1.
+Inductive T2 := ttest : T1 -> T2.
+Inductive T3 := ttest2 : T2 -> T3.
+
+Inductive T4 := ttest3 : T3 -> T4.
+Require Import List.
+Import ListNotations.
+MetaCoq Run (Derive pickle for T4 with [<% T1 %>; <% T2 %>; <% T3 %>]).
+MetaCoq Run (Derive unpickle for T4 with [<% T1 %>; <% T2 %>; <% T3 %>]).
